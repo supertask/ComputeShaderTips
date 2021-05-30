@@ -1,0 +1,18 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Check1DIds
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWStructuredBuffer<int> _IntBuffer;
+
+[numthreads(8,1,1)]
+void Check1DIds (
+    uint3 id : SV_DispatchThreadID, //numthreads.x * groups.x, 0 ~ 128
+    uint3 groupId : SV_GroupID,
+    uint3 groupThreadId : SV_GroupThreadID,
+    uint groupIndex : SV_GroupIndex //1次元の場合, 0 ~ numthreads.x(8)
+) {
+    //_IntBuffer[id.x] = groupId.x;
+    //_IntBuffer[id.x] = groupThreadId.x;
+    _IntBuffer[id.x] = groupIndex;
+}

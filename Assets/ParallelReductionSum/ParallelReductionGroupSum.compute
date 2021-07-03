@@ -1,0 +1,133 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel BoundaryAndInterval
+#pragma kernel GatherAndWrite
+
+#define THREAD_1D 256
+
+
+struct MpmParticle {
+    int type;
+	float3 position;
+	float3 velocity;
+    float mass;
+    float volume;
+    float3x3 C; //C = D * B at Affine particle in cell
+    float3x3 Fe;
+    float Jp;
+};
+
+struct MpmCell {
+    float mass;
+    float3 mass_x_velocity;
+    float3 velocity;
+    float3 force;
+	float2 padding;
+};
+
+// For GPU optimazation of MPM
+// https://dl.acm.org/doi/10.1145/3272127.3275044
+// http://pages.cs.wisc.edu/~sifakis/papers/GPU_MPM.pdf
+struct P2GMass {
+	float mass;
+	float3 mass_x_velocity;
+};
+
+
+
+int _NumOfParticles;
+
+
+RWStructuredBuffer<uint2> _GridAndMassIdsBuffer;
+//RWStructuredBuffer<P2GMass> _P2GMassBuffer;
+RWStructuredBuffer<uint> _P2GMassBuffer;
+StructuredBuffer<uint2> _GridIndicesBuffer;
+
+//Output 1
+RWStructuredBuffer<uint2> _BoundaryAndIntervalBuffer;
+
+//Output 2
+RWStructuredBuffer<uint> _GridBuffer;
+//RWStructuredBuffer<P2GMass> _OutputP2gMassBuffer;
+RWStructuredBuffer<uint> _OutputP2gMassBuffer;
+
+
+//
+// Ming Gao, Xinlei Wang, Kui Wu, ..,
+// GPU Optimization of Material Point Methods,
+// ACM Transactions on Graphics (Proceedings of ACM SIGGRAPH Asia), 2018
+// https://dl.acm.org/doi/10.1145/3272127.3275044
+// http://pages.cs.wisc.edu/~sifakis/papers/GPU_MPM.pdf
+//
+[numthreads(THREAD_1D,1,1)]
+void BoundaryAndInterval(uint3 DTid : SV_DispatchThreadID)
+{
+	const uint laneId = DTid.x;
+	if (laneId-1 < 0) { return; }
+	const uint cellId = _GridAndMassIdsBuffer[laneId].x;
+	const uint prevCellId = _GridAndMassIdsBuffer[laneId-1].x;
+
+	uint boundary = (laneId == 0 || cellId != prevCellId) ? 1 : 0;
+
+	uint laneIdEnd = _GridIndicesBuffer[cellId].y;
+	uint regionInterval = laneIdEnd - 1 - laneId;
+
+	_BoundaryAndIntervalBuffer[laneId] = uint2(boundary, regionInterval);
+}
+
+
+//groupshared float blockMass[512];
+//groupshared float3 blockMassXVelocity[512];
+groupshared int blockMass[512];
+
+//void GatherAndWrite(
+//	uint3 Gid  : SV_GroupID,
+//	uint3 DTid : SV_DispatchThreadID,
+//	uint3 GTid : SV_GroupThreadID,
+//	uint  GI : SV_GroupIndex)
+//{
+[numthreads(THREAD_1D,1,1)]
+void GatherAndWrite(uint3 DTid : SV_DispatchThreadID, uint GI : SV_GroupIndex)
+{
+	const uint laneId = DTid.x;
+	uint2 cellAndMassId = _GridAndMassIdsBuffer[laneId];
+	uint cellIndex  = cellAndMassId.x;
+	uint massIndex  = cellAndMassId.y;
+	uint2 startAndEndIndices = _GridIndicesBuffer[cellIndex];
+	uint startLaneId = startAndEndIndices.x;
+	uint endLaneId = startAndEndIndices.y;
+
+	uint2 boundaryAndInterval = _BoundaryAndIntervalBuffer[laneId];
+	uint boundary = boundaryAndInterval.x;
+	uint regionInterval = boundaryAndInterval.y;
+	uint particleId = _GridAndMassIdsBuffer[startLaneId].y;
+
+	// Store each particle info of 256 threads
+	//P2GMass p2gMass = _P2GMassBuffer[massIndex];
+	//blockMass[GI] = p2gMass.mass;
+	//blockMassXVelocity[GI] = p2gMass.mass_x_velocity; //仮
+	blockMass[GI] = _P2GMassBuffer[massIndex];
+	GroupMemoryBarrierWithGroupSync();
+	for(uint stride = 1; stride < 256; stride <<= 1)
+	{
+		if (stride <= regionInterval) {
+			// stride <= interval
+			// only sum within the group(same grid index)
+
+			blockMass[GI] += blockMass[GI+stride];
+			//blockMassXVelocity[GI] += blockMassXVelocity[GI+stride];
+		}
+		GroupMemoryBarrierWithGroupSync();
+	}
+
+	// Only the boundary node (Leader node) needs to write
+	if (boundaryAndInterval.x)
+	{
+        _OutputP2gMassBuffer[laneId] = blockMass[GI];
+        /*
+		MpmCell cell = _GridBuffer[cellIndex];
+		cell.mass = blockMass[GI];
+		cell.mass_x_velocity = blockMassXVelocity[GI];
+		_GridBuffer[cellIndex] = cell; //AtomicAdd is applied
+        */
+	}
+}

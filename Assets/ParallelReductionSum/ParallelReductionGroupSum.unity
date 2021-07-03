@@ -227,7 +227,7 @@ GameObject:
   - component: {fileID: 731083907}
   - component: {fileID: 731083908}
   m_Layer: 0
-  m_Name: CheckIds
+  m_Name: ParallelReductionGroupSum
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -256,10 +256,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 731083906}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d74294311e9d73043b376b78a86629c0, type: 3}
+  m_Script: {fileID: 11500000, guid: 77a5870698bd37e45ac30f5e2371d440, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  cs: {fileID: 7200000, guid: 324fa3edee403b34bb3a41148f42e7e7, type: 3}
+  cs: {fileID: 7200000, guid: 40df1e8b1cd7d854f906bb2c441c84b1, type: 3}
   numOfArray: 128
 --- !u!1 &963194225
 GameObject:

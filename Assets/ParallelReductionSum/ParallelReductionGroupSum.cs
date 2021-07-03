@@ -11,6 +11,7 @@ public class ParallelReductionGroupSum : MonoBehaviour
     public ComputeShader cs;
     public int numOfArray = 128;
 
+    private Kernel clearBuffersKernel;
     private Kernel boundaryAndIntervalKernel;
     private Kernel gatherAndWriteKernel;
     private int numOfP2GMasses;
@@ -40,9 +41,9 @@ public class ParallelReductionGroupSum : MonoBehaviour
 
     void Start()
     {
+        this.clearBuffersKernel = new Kernel(cs, "ClearBuffers");
         this.boundaryAndIntervalKernel = new Kernel(cs, "BoundaryAndInterval");
         this.gatherAndWriteKernel = new Kernel(cs, "GatherAndWrite");
-
 
         // mass length
         uint[] masses =         new uint[] { 5, 7,  8, 1, 3, 2,  9, 6 }; //8
@@ -99,10 +100,11 @@ public class ParallelReductionGroupSum : MonoBehaviour
         this.gridIndicesBuffer.SetData(gridIndices);
 
         // Output Compute Buffers
-        this.boundaryAndIntervalBuffer = new ComputeBuffer(numOfP2GMasses,
+        this.boundaryAndIntervalBuffer = new ComputeBuffer(this.numOfP2GMasses,
             Marshal.SizeOf(typeof(uint2)) );
-        this.outputP2gMassBuffer = new ComputeBuffer(this.numOfCells, sizeof(uint));
+        this.outputP2gMassBuffer = new ComputeBuffer(this.numOfP2GMasses, sizeof(uint));
 
+        this.ClearBuffers();
         this.ComputeBoundaryAndInterval();
         this.GatherAndWriteP2G();
 
@@ -110,6 +112,23 @@ public class ParallelReductionGroupSum : MonoBehaviour
         this.ReleaseAll();
     }
 
+    public void ClearBuffers()
+    {
+        /*
+        this.p2gScatteringOptCS.SetBuffer(this.clearBuffersKernel.Index,
+            ShaderID.GridAndMassIdsBuffer, this.gridAndMassIdsBuffer);
+        this.p2gScatteringOptCS.SetBuffer(this.clearBuffersKernel.Index,
+            ShaderID.P2GMassBuffer, this.p2gMassBuffer);
+        */
+        this.cs.SetBuffer(this.clearBuffersKernel.Index,
+            ShaderID.BoundaryAndIntervalBuffer, this.boundaryAndIntervalBuffer);
+        this.cs.SetBuffer(this.clearBuffersKernel.Index,
+            ShaderID.OutputP2gMassBuffer, this.outputP2gMassBuffer);
+        this.cs.Dispatch(this.clearBuffersKernel.Index,
+            Mathf.CeilToInt(this.numOfP2GMasses / (float)this.clearBuffersKernel.ThreadX),
+            (int)this.clearBuffersKernel.ThreadY,
+            (int)this.clearBuffersKernel.ThreadZ);
+    }
 
     public void ComputeBoundaryAndInterval()
     {
@@ -124,13 +143,12 @@ public class ParallelReductionGroupSum : MonoBehaviour
             (int)this.boundaryAndIntervalKernel.ThreadY,
             (int)this.boundaryAndIntervalKernel.ThreadZ);
 
-        Debugger.LogBuffer<uint2>(this.boundaryAndIntervalBuffer, 0, this.numOfP2GMasses);
+        //Debugger.LogBuffer<uint2>(this.boundaryAndIntervalBuffer, 0, this.numOfP2GMasses);
     }
 
 
     public void GatherAndWriteP2G()
     {
-        //たぶんここはバグってる
         this.cs.SetBuffer(this.gatherAndWriteKernel.Index,
             ShaderID.GridIndicesBuffer, this.gridIndicesBuffer);
         this.cs.SetBuffer(this.gatherAndWriteKernel.Index,
@@ -159,13 +177,4 @@ public class ParallelReductionGroupSum : MonoBehaviour
         Util.ReleaseBuffer(this.outputP2gMassBuffer);
     }
 
-
-    public static void ReleaseComputeBuffer(ComputeBuffer buffer)
-    {
-        if (buffer != null)
-        {
-            buffer.Release();
-            buffer = null;
-        }
-    }
 }

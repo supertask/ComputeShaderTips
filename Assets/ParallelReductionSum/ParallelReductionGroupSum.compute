@@ -1,4 +1,5 @@
 // Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel ClearBuffers
 #pragma kernel BoundaryAndInterval
 #pragma kernel GatherAndWrite
 
@@ -50,6 +51,21 @@ RWStructuredBuffer<uint> _GridBuffer;
 //RWStructuredBuffer<P2GMass> _OutputP2gMassBuffer;
 RWStructuredBuffer<uint> _OutputP2gMassBuffer;
 
+[numthreads(THREAD_1D,1,1)]
+void ClearBuffers(uint3 DTid : SV_DispatchThreadID)
+{
+	uint laneId = DTid.x;
+	//_GridAndMassIdsBuffer[laneId] = uint2(0xFFFFFFFF, 0xFFFFFFFF);
+	//_GridPingPongBuffer[laneId] = uint2(0xFFFFFFFF, 0xFFFFFFFF);
+	//_GridAndMassIdsBuffer[laneId] = uint2(0, 0);
+	//_GridPingPongBuffer[laneId] = uint2(0, 0);
+	//P2GMass p2gMass;
+	//p2gMass.mass = 0;
+	//p2gMass.mass_x_velocity = 0;
+	//_P2GMassBuffer[laneId] = p2gMass;
+	_BoundaryAndIntervalBuffer[laneId] = uint2(0,0);
+	_OutputP2gMassBuffer[laneId] = 0;
+}
 
 //
 // Ming Gao, Xinlei Wang, Kui Wu, ..,
@@ -107,7 +123,12 @@ void GatherAndWrite(uint3 DTid : SV_DispatchThreadID, uint GI : SV_GroupIndex)
 	//blockMassXVelocity[GI] = p2gMass.mass_x_velocity; //仮
 	blockMass[GI] = _P2GMassBuffer[massIndex];
 	GroupMemoryBarrierWithGroupSync();
-	for(uint stride = 1; stride < 256; stride <<= 1)
+
+    //
+    // TODO(Tasuku): ここのforの回数を変動的にできるようにする
+    //
+	//for(uint stride = 1; stride < 256; stride <<= 1)
+	for(uint stride = 1; stride < 4; stride <<= 1)
 	{
 		if (stride <= regionInterval) {
 			// stride <= interval

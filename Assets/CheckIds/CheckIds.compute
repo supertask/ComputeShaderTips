@@ -3,16 +3,36 @@
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
-RWStructuredBuffer<int> _IntBuffer;
+RWStructuredBuffer<int> _GroupIdBuffer;
+RWStructuredBuffer<int> _GroupThreadIdBuffer;
+RWStructuredBuffer<int> _GroupIndexBuffer;
 
-[numthreads(8,1,1)]
+[numthreads(4,1,1)]
 void Check1DIds (
-    uint3 id : SV_DispatchThreadID, //numthreads.x * groups.x, 0 ~ 128
+    // Unique id of entire thread
+    // numthreads.x * groups.x
+    uint3 id : SV_DispatchThreadID,
+
+    // Group ID
+    // example:
+    //   if numthreads is (4,1,1)
+    //   0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3
     uint3 groupId : SV_GroupID,
+
+    // 3D group index
+    // example:
+    //   if numthreads is (4,1,1)
+    //   0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3
     uint3 groupThreadId : SV_GroupThreadID,
-    uint groupIndex : SV_GroupIndex //1次元の場合, 0 ~ numthreads.x(8)
+
+    // Group index which is converted groupThreadId(3D) to 1D's number.
+    // When it is 1D, 0 ~ numthreads.x(8)
+    // example:
+    //   if numthreads is (4,1,1)
+    //   0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3
+    uint groupIndex : SV_GroupIndex
 ) {
-    //_IntBuffer[id.x] = groupId.x;
-    //_IntBuffer[id.x] = groupThreadId.x;
-    _IntBuffer[id.x] = groupIndex;
+    _GroupIdBuffer[id.x] = groupId.x;
+    _GroupThreadIdBuffer[id.x] = groupThreadId.x;
+    _GroupIndexBuffer[id.x] = groupIndex;
 }

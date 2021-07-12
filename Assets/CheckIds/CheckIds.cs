@@ -7,32 +7,53 @@ public class CheckIds : MonoBehaviour
     public int numOfArray = 128;
 
     private Kernel kCheckIds;
-    private ComputeBuffer intBuffer;
+    private ComputeBuffer groupIdBuffer, groupThreadIdBuffer, groupIndexBuffer;
+
+
+    #region Shader property IDs
+    public static class ShaderID
+    {
+        public static int GroupIdBuffer = Shader.PropertyToID("_GroupIdBuffer");
+        public static int GroupThreadIdBuffer = Shader.PropertyToID("_GroupThreadIdBuffer");
+        public static int GroupIndexBuffer = Shader.PropertyToID("_GroupIndexBuffer");
+    }
+    #endregion
 
     void Start()
     {
         this.kCheckIds = new Kernel(cs, "Check1DIds");
 
-        this.intBuffer = new ComputeBuffer(this.numOfArray, sizeof(int));
-        this.cs.SetBuffer(this.kCheckIds.Index, "_IntBuffer", this.intBuffer);
+        this.groupIdBuffer = new ComputeBuffer(this.numOfArray, sizeof(int));
+        this.groupThreadIdBuffer = new ComputeBuffer(this.numOfArray, sizeof(int));
+        this.groupIndexBuffer = new ComputeBuffer(this.numOfArray, sizeof(int));
+        this.cs.SetBuffer(this.kCheckIds.Index, ShaderID.GroupIdBuffer, this.groupIdBuffer);
+        this.cs.SetBuffer(this.kCheckIds.Index, ShaderID.GroupThreadIdBuffer, this.groupThreadIdBuffer);
+        this.cs.SetBuffer(this.kCheckIds.Index, ShaderID.GroupIndexBuffer, this.groupIndexBuffer);
 
         // グループ数は X * Y * Z で指定します。この例では 1 * 1 * 1 = 1 グループです。
-        int numOfGroups = (int) (this.numOfArray / this.kCheckIds.ThreadX);
-        this.cs.Dispatch(this.kCheckIds.Index,
-            numOfGroups, 1, 1);
+        int numOfGroups = Mathf.CeilToInt(this.numOfArray / this.kCheckIds.ThreadX);
+        this.cs.Dispatch(this.kCheckIds.Index, numOfGroups, (int)this.kCheckIds.ThreadY, (int)this.kCheckIds.ThreadZ);
         Debug.Log("NumOfGroups: " + numOfGroups);
 
         int[] result = new int[this.numOfArray];
 
-        this.intBuffer.GetData(result);
+        int N = 15;
+        Debug.Log("groupId");
+        Debugger.LogBuffer<uint>(this.groupIdBuffer, 0, N);
+        Debug.Log("---");
 
-        for (int i = 0; i < this.numOfArray; i++)
-        {
-            Debug.LogFormat("i: {0}, intBuffer: {1}", i, result[i]);
-        }
+        Debug.Log("groupThreadId");
+        Debugger.LogBuffer<uint>(this.groupThreadIdBuffer, 0, N);
+        Debug.Log("---");
+
+        Debug.Log("groupIndex");
+        Debugger.LogBuffer<uint>(this.groupIndexBuffer, 0, N);
+        Debug.Log("=========");
 
         // (5) 使い終わったバッファは必要なら解放します。
 
-        this.intBuffer.Release();
+        Util.ReleaseBuffer(this.groupIdBuffer);
+        Util.ReleaseBuffer(this.groupThreadIdBuffer);
+        Util.ReleaseBuffer(this.groupIndexBuffer);
     }
 }

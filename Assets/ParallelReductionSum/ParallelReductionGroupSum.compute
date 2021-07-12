@@ -1,9 +1,12 @@
 // Each #kernel tells which function to compile; you can have many kernels
-#pragma kernel ClearBuffers
+#pragma kernel ClearMassBuffers
+#pragma kernel ClearGridBuffers
 #pragma kernel BoundaryAndInterval
 #pragma kernel GatherAndWrite
 
-#define THREAD_1D 256
+//#define THREAD_1D 256
+#define THREAD_1D 4
+#define FLOAT_TO_INT_DIGIT 1000
 
 
 struct MpmParticle {
@@ -20,6 +23,14 @@ struct MpmParticle {
 struct MpmCell {
     float mass;
     float3 mass_x_velocity;
+    float3 velocity;
+    float3 force;
+	float2 padding;
+};
+
+struct InterlockedMpmCell {
+    int mass;
+    int3 mass_x_velocity;
     float3 velocity;
     float3 force;
 	float2 padding;
@@ -47,12 +58,15 @@ StructuredBuffer<uint2> _GridIndicesBuffer;
 RWStructuredBuffer<uint2> _BoundaryAndIntervalBuffer;
 
 //Output 2
-RWStructuredBuffer<uint> _GridBuffer;
+RWStructuredBuffer<InterlockedMpmCell> _GridBuffer;
+//RWStructuredBuffer<int> _GridMassBuffer;
+//RWStructuredBuffer<int3> _GridMassVelBuffer;
+
 //RWStructuredBuffer<P2GMass> _OutputP2gMassBuffer;
 RWStructuredBuffer<uint> _OutputP2gMassBuffer;
 
 [numthreads(THREAD_1D,1,1)]
-void ClearBuffers(uint3 DTid : SV_DispatchThreadID)
+void ClearMassBuffers(uint3 DTid : SV_DispatchThreadID)
 {
 	uint laneId = DTid.x;
 	//_GridAndMassIdsBuffer[laneId] = uint2(0xFFFFFFFF, 0xFFFFFFFF);
@@ -67,6 +81,22 @@ void ClearBuffers(uint3 DTid : SV_DispatchThreadID)
 	_OutputP2gMassBuffer[laneId] = 0;
 }
 
+[numthreads(THREAD_1D,1,1)]
+void ClearGridBuffers(uint3 DTid : SV_DispatchThreadID)
+{
+	uint cellId = DTid.x;
+	//_GridMassBuffer[cellId] = 0;
+	//_GridMassVelBuffer[cellId] = int3(0,0,0);
+
+	InterlockedMpmCell cell;
+	cell.mass = 0;
+	cell.mass_x_velocity = int3(0,0,0);
+	cell.velocity = float3(0,0,0);
+	cell.force = float3(0,0,0);
+	cell.padding = float2(0,0);
+	_GridBuffer[cellId] = cell;
+}
+
 //
 // Ming Gao, Xinlei Wang, Kui Wu, ..,
 // GPU Optimization of Material Point Methods,
@@ -75,16 +105,51 @@ void ClearBuffers(uint3 DTid : SV_DispatchThreadID)
 // http://pages.cs.wisc.edu/~sifakis/papers/GPU_MPM.pdf
 //
 [numthreads(THREAD_1D,1,1)]
-void BoundaryAndInterval(uint3 DTid : SV_DispatchThreadID)
-{
+void BoundaryAndInterval(
+    // Unique id of entire thread
+    // numthreads.x * groups.x	
+	uint3 DTid : SV_DispatchThreadID,
+
+    // Group ID
+    // example:
+    //   if numthreads is (4,1,1)
+    //   0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3
+    uint3 groupId : SV_GroupID,
+
+    // Group index which is converted groupThreadId(3D) to 1D's number.
+    // example:
+    //   if numthreads is (4,1,1)
+    //   0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3
+	uint GI : SV_GroupIndex
+
+) {
 	const uint laneId = DTid.x;
 	if (laneId-1 < 0) { return; }
 	const uint cellId = _GridAndMassIdsBuffer[laneId].x;
 	const uint prevCellId = _GridAndMassIdsBuffer[laneId-1].x;
 
-	uint boundary = (laneId == 0 || cellId != prevCellId) ? 1 : 0;
+	// 
+	// Mark a boundary between different cells
+	//
+	// laneId == 0 does not have previous cell id. That's why
+	// cellId != prevCellId: if cell ids are different, it is boundary point
+	// GI == 0: boundary of group shared
+	//
+	uint boundary = (laneId == 0 || cellId != prevCellId
+		|| GI == 0) ? 1 : 0;
 
 	uint laneIdEnd = _GridIndicesBuffer[cellId].y;
+
+	//
+	// Mark region interval
+	//
+	// If the end of lane index is less than group shared boundary point,
+	// the end is _GridIndicesBuffer[cellId].y.
+	// else, the end is group shared boundary point
+	//
+	laneIdEnd = (laneIdEnd < (groupId.x + 1) * THREAD_1D)
+		? laneIdEnd
+		: (groupId.x + 1) * THREAD_1D;
 	uint regionInterval = laneIdEnd - 1 - laneId;
 
 	_BoundaryAndIntervalBuffer[laneId] = uint2(boundary, regionInterval);
@@ -93,7 +158,8 @@ void BoundaryAndInterval(uint3 DTid : SV_DispatchThreadID)
 
 //groupshared float blockMass[512];
 //groupshared float3 blockMassXVelocity[512];
-groupshared int blockMass[512];
+//groupshared int blockMass[512];
+groupshared int blockMass[THREAD_1D * 2];
 
 //void GatherAndWrite(
 //	uint3 Gid  : SV_GroupID,
@@ -128,7 +194,7 @@ void GatherAndWrite(uint3 DTid : SV_DispatchThreadID, uint GI : SV_GroupIndex)
     // TODO(Tasuku): ここのforの回数を変動的にできるようにする
     //
 	//for(uint stride = 1; stride < 256; stride <<= 1)
-	for(uint stride = 1; stride < 4; stride <<= 1)
+	for(uint stride = 1; stride < THREAD_1D; stride <<= 1)
 	{
 		if (stride <= regionInterval) {
 			// stride <= interval
@@ -144,11 +210,15 @@ void GatherAndWrite(uint3 DTid : SV_DispatchThreadID, uint GI : SV_GroupIndex)
 	if (boundaryAndInterval.x)
 	{
         _OutputP2gMassBuffer[laneId] = blockMass[GI];
-        /*
-		MpmCell cell = _GridBuffer[cellIndex];
-		cell.mass = blockMass[GI];
-		cell.mass_x_velocity = blockMassXVelocity[GI];
-		_GridBuffer[cellIndex] = cell; //AtomicAdd is applied
-        */
+
+		//Save into a cell
+		int intMass = (int) (blockMass[GI] * FLOAT_TO_INT_DIGIT);
+		//InterlockedAdd(_GridMassBuffer[cellIndex], intMass);
+		//InterlockedAdd(_GridMassVelBuffer[cellIndex].x, intMass);
+
+	 	InterlockedAdd(_GridBuffer[cellIndex].mass, intMass);
+	 	InterlockedAdd(_GridBuffer[cellIndex].mass_x_velocity.x, intMass);
+	 	InterlockedAdd(_GridBuffer[cellIndex].mass_x_velocity.y, intMass);
+	 	InterlockedAdd(_GridBuffer[cellIndex].mass_x_velocity.z, intMass);
 	}
 }

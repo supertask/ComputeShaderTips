@@ -9,8 +9,10 @@ Group Parallel Reduction Sum is writtern on [GPU Optimization of Material Point 
 
 ## Converter between Float and Int2
 
-If you want to use InterlockedAdd with float value, you need to use this converter. 
-And also this converter is tested by generatiting a bunch of random float values.
+If you want to use InterlockedAdd with float value, you need to use this converter. And also this converter is tested by generatiting a bunch of random float values.
+Please check out the code bellow.
+
+https://github.com/supertask/ComputeShaderTips/blob/main/Assets/FloatToInt2/FloatToInt2.compute#L24-L58
 
 
 ## CheckIds

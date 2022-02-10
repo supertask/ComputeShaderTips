@@ -26,6 +26,8 @@ public class CheckIds : MonoBehaviour
         this.groupIdBuffer = new ComputeBuffer(this.numOfArray, sizeof(int));
         this.groupThreadIdBuffer = new ComputeBuffer(this.numOfArray, sizeof(int));
         this.groupIndexBuffer = new ComputeBuffer(this.numOfArray, sizeof(int));
+        //this.cs.DisableKeyword("T2");
+        //this.cs.EnableKeyword("T2");
         this.cs.SetBuffer(this.kCheckIds.Index, ShaderID.GroupIdBuffer, this.groupIdBuffer);
         this.cs.SetBuffer(this.kCheckIds.Index, ShaderID.GroupThreadIdBuffer, this.groupThreadIdBuffer);
         this.cs.SetBuffer(this.kCheckIds.Index, ShaderID.GroupIndexBuffer, this.groupIndexBuffer);

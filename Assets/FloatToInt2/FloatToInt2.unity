@@ -227,12 +227,12 @@ GameObject:
   - component: {fileID: 731083907}
   - component: {fileID: 731083908}
   m_Layer: 0
-  m_Name: ParallelReductionGroupSum
+  m_Name: FloatToInt2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &731083907
 Transform:
   m_ObjectHideFlags: 0
@@ -256,59 +256,12 @@ MonoBehaviour:
   m_GameObject: {fileID: 731083906}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 77a5870698bd37e45ac30f5e2371d440, type: 3}
+  m_Script: {fileID: 11500000, guid: 6aad61efc5a734443b04ca3e515d582e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  cs: {fileID: 7200000, guid: 40df1e8b1cd7d854f906bb2c441c84b1, type: 3}
-  numOfArray: 128
---- !u!1 &779813062
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 779813064}
-  - component: {fileID: 779813063}
-  m_Layer: 0
-  m_Name: ParallelReductionGroupSumExtra
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &779813063
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 779813062}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8f238fa2794f4634cb2265912a6be7e3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  cs: {fileID: 7200000, guid: 40df1e8b1cd7d854f906bb2c441c84b1, type: 3}
-  gridWidth: 4
-  gridHeight: 4
-  gridDepth: 4
-  numOfP2GMasses: 32
---- !u!4 &779813064
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 779813062}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_RootOrder: 3
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  cs: {fileID: 7200000, guid: c4398d252400d574f8825f7ee9edef11, type: 3}
+  numOfArray: 16
+  debug: 1
 --- !u!1 &963194225
 GameObject:
   m_ObjectHideFlags: 0

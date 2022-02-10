@@ -1,0 +1,124 @@
+#pragma kernel FloatToInt2
+//#pragma kernel Float3ToInt3x2
+
+/*
+struct int3multi2 {
+    int3 i1;
+    int3 i2;
+}
+*/
+
+// float
+StructuredBuffer<float> _InFloatBuffer;
+RWStructuredBuffer<float> _OutFloatBuffer;
+RWStructuredBuffer<int2> _Int2Buffer;
+
+// float3
+StructuredBuffer<float3> _InFloat3Buffer;
+RWStructuredBuffer<float3> _OutFloat3Buffer;
+RWStructuredBuffer<int3x2> _Int3x2Buffer;
+
+
+RWStructuredBuffer<float4> _DebugBuffer;
+
+//
+//
+//
+// example:
+//     v = 10.25609895412
+//     (int)10.25609890412 * 10000 -> 102560.989541 -> 102560
+//     (int)0.989041 * 10000 -> 9895.41 -> 9895
+//
+//     102560 / 10000 -> 10.256
+//     9895 / 100000000 -> 0.00009895
+//     10.256 + 0.00009895 -> 10.25609895
+//     
+// BTW max value of int: 2147483647
+//
+//#define F2I_DIGIT 256
+//#define F2I_DIGIT 512
+#define F2I_DIGIT 1024 //Must be 2 ^ x
+#define F2I_DIGIT_2SQRT F2I_DIGIT * F2I_DIGIT 
+
+int2 ConvertFloatToInt2(float v)
+{
+	float f1 = v * F2I_DIGIT;
+    int i1 = (int)f1;
+	float f2 = (f1 - i1) * F2I_DIGIT; 
+	//float f2 = frac(f1) * F2I_DIGIT;  //This does not work correctly!!
+    int i2 = (int)f2;
+	return int2( i1, i2 );
+}
+
+float ConvertInt2ToFloat(int2 v)
+{
+	float f1 = ((float)v.x) / F2I_DIGIT;
+	float f2 = ((float)v.y) / (F2I_DIGIT * F2I_DIGIT);
+	return f1 + f2;
+}
+
+float3 ConvertInt3x2ToFloat3(int3 v1, int3 v2)
+{
+	return float3(
+		ConvertInt2ToFloat(int2(v1.x, v2.x)),
+		ConvertInt2ToFloat(int2(v1.y, v2.y)),
+		ConvertInt2ToFloat(int2(v1.z, v2.z))
+	);
+}
+
+//void ConvertFloat3ToInt3x2(float3 v, out int3 splitV1, out int3 splitV2)
+int3x2 ConvertFloat3ToInt3x2(float3 v)
+{
+	int2 vX = ConvertFloatToInt2(v.x);
+	int2 vY = ConvertFloatToInt2(v.y);
+	int2 vZ = ConvertFloatToInt2(v.z);
+    int3x2 splitV = int3x2(
+        vX.x, vY.x, vZ.x,
+        vX.y, vY.y, vZ.y
+    );
+    return splitV;
+	//InterlockedAdd(_LockGridBuffer[cellIndex].mass_x_velocity.x, splitMassXVelocityX.x );
+	//InterlockedAdd(_LockGridBuffer[cellIndex].mass_x_velocity2.x, splitMassXVelocityX.y );
+	//InterlockedAdd(_LockGridBuffer[cellIndex].mass_x_velocity.y, splitMassXVelocityY.x );
+	//InterlockedAdd(_LockGridBuffer[cellIndex].mass_x_velocity2.y, splitMassXVelocityY.y );
+	//InterlockedAdd(_LockGridBuffer[cellIndex].mass_x_velocity.z, splitMassXVelocityZ.x );
+	//InterlockedAdd(_LockGridBuffer[cellIndex].mass_x_velocity2.z, splitMassXVelocityZ.y );
+}
+
+
+[numthreads(4,1,1)]
+void FloatToInt2 (uint3 id : SV_DispatchThreadID)
+{
+    uint idx = id.x;
+    float value = _InFloatBuffer[idx];
+    int2 splitValue = ConvertFloatToInt2(value);
+    _Int2Buffer[idx] = splitValue;
+    _OutFloatBuffer[idx] = ConvertInt2ToFloat(splitValue);
+
+    // ConvertFloatToInt2 break down
+	float f1 = value * F2I_DIGIT;
+    int i1 = (int)f1;
+	//float f2 = (f1 - i1) * F2I_DIGIT; 
+	float f2 = (f1 - i1); 
+
+	float f3 = ((float)splitValue.x) / F2I_DIGIT;
+	float f4 = ((float)splitValue.y) / (F2I_DIGIT * F2I_DIGIT);
+
+    _DebugBuffer[idx] = float4(f1, f2, f3, f4);
+}
+
+
+/*
+// Created for InterlockedAdd's Vector3
+[numthreads(4,1,1)]
+void Float3ToInt3x2 (uint3 id : SV_DispatchThreadID)
+{
+    uint idx = id.x;
+    float3 value = _InFloat3Buffer[idx];
+    //int3 splitV1, splitV2;
+    int3x2 splitV = ConvertFloat3ToInt3x2(value);
+    _Int3x2Buffer[idx] = splitV;
+
+    _OutFloat3Buffer[idx] = ConvertInt3x2ToFloat3(splitV.x, splitV2);
+}
+*/

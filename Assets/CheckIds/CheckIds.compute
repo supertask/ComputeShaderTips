@@ -1,6 +1,8 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel Check1DIds
 
+#pragma shader_feature_local __ T1 T2
+
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWStructuredBuffer<int> _GroupIdBuffer;

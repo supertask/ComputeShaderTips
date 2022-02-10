@@ -1,0 +1,110 @@
+﻿//#pragma kernel BuildGridCS
+#pragma kernel ClearGridIndicesCS
+#pragma kernel BuildGridIndicesCS
+//#pragma kernel RearrangeParticlesCS
+//#pragma kernel CopyBuffer
+
+#define SIMULATION_BLOCK_SIZE 4
+//#define SIMULATION_BLOCK_SIZE 1024
+
+#include "NearestNeighbour3D.hlsl"
+
+//StructuredBuffer<MpmParticle>	_P2GMassBuffer;
+//RWStructuredBuffer<MpmParticle>	_SortedP2GMassBuffer;
+StructuredBuffer<P2GMass>	_P2GMassBuffer;
+RWStructuredBuffer<P2GMass>	_SortedP2GMassBuffer;
+
+StructuredBuffer  <uint2>	_GridAndMassIdsBuffer;
+RWStructuredBuffer<uint2>	_GridBufferWrite;
+
+uint _NumOfMasses;
+
+// -----------------------------------------------------------
+// Grid
+// -----------------------------------------------------------
+
+
+
+//--------------------------------------------------------------------------------------
+// Build Grid : 各パーティクルの属するセルを計算し、紐づけてGridBufferに保存 -> 確認済み
+//--------------------------------------------------------------------------------------
+/*
+[numthreads(SIMULATION_BLOCK_SIZE, 1, 1)]
+void BuildGridCS(uint3 DTid : SV_DispatchThreadID) {
+	const unsigned int P_ID = DTid.x;	// Particle ID to operate on
+
+	//おそらく, ここで非アクティブなパーティクルの扱いを定義する必要がある
+	float3 position = _P2GMassBuffer[P_ID].position;
+	float3 grid_LFScattering = GridCalculateCell(position);
+
+	_GridBufferWrite[P_ID] = MakeKeyValuePair((uint3)grid_LFScattering, P_ID);
+}
+*/
+
+//--------------------------------------------------------------------------------------
+// Build Grid Indices : ソート済みのパーティクルハッシュに対して、始まりと終わりを記録 -> 要確認
+//--------------------------------------------------------------------------------------
+// 0000011111122222334444 を
+//       0 1  2  3  4
+// start 0 5  11 16 18
+// end   4 10 15 17 21
+// に変換
+
+[numthreads(SIMULATION_BLOCK_SIZE, 1, 1)]
+void ClearGridIndicesCS(uint3 DTid : SV_DispatchThreadID) {
+	// グリッドの個数分
+	_GridIndicesBuffer[DTid.x] = uint2(-1, -1);
+}
+
+[numthreads(SIMULATION_BLOCK_SIZE, 1, 1)]
+void BuildGridIndicesCS(uint3 DTid : SV_DispatchThreadID) {
+	// パーティクルの個数分
+	const unsigned int P_ID = DTid.x;
+	if (P_ID > _NumOfMasses) { return; }
+
+	// 1個前のパーティクルIDを計算
+	uint P_ID_PREV = (P_ID == 0) ? (uint)_NumOfMasses : P_ID;
+	P_ID_PREV--;
+
+	// 1個後のパーティクルIDを計算
+	uint P_ID_NEXT = P_ID + 1;
+	if (P_ID_NEXT == (uint)_NumOfMasses) { P_ID_NEXT = 0; }
+
+	// ソート済みのGrid-Particleバッファから
+	// 自分がいるグリッドを計算する
+	uint cellId = GridGetKey(_GridAndMassIdsBuffer[P_ID]);				// ソートされたグリッドIDの取得
+	if (cellId == -1) { return; }
+	uint prevCellId = GridGetKey(_GridAndMassIdsBuffer[P_ID_PREV]);
+	uint nextCellId = GridGetKey(_GridAndMassIdsBuffer[P_ID_NEXT]);
+
+	// 前後セルインデックスと異なる場合記録
+	if (cellId != prevCellId) {
+		// 新しいセルインデックスの始まりの配列インデックス
+		_GridIndicesBuffer[cellId].x = P_ID;
+	}
+
+	if (cellId != nextCellId) {
+		// 新しいセルインデックスの終わりの配列インデックス
+		_GridIndicesBuffer[cellId].y = P_ID + 1;
+	}
+}
+
+
+/*
+[numthreads(SIMULATION_BLOCK_SIZE, 1, 1)]
+void RearrangeParticlesCS(uint3 DTid : SV_DispatchThreadID) {
+	uint laneId = DTid.x; // Particle ID to operate on
+	if (laneId > _NumOfMasses) { return; }
+	uint massId = _GridAndMassIdsBuffer[laneId].y;
+	if (massId < 0 || _NumOfMasses < massId) { return; }
+	_SortedP2GMassBuffer[laneId] = _P2GMassBuffer[massId]; // ソート済みに並び替える
+}
+*/
+
+/*
+[numthreads(SIMULATION_BLOCK_SIZE, 1, 1)]
+void CopyBuffer(uint3 DTid : SV_DispatchThreadID) {
+	uint laneId = DTid.x;
+	_P2GMassBuffer[laneId] = _SortedP2GMassBuffer[laneId];
+}
+*/

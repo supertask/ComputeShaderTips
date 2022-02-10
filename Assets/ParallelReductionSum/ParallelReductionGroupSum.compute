@@ -1,52 +1,15 @@
-// Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel ClearMassBuffers
 #pragma kernel ClearGridBuffers
 #pragma kernel BoundaryAndInterval
 #pragma kernel GatherAndWrite
 
+#include "Assets/ParallelReductionSum/MpmStruct.hlsl"
+
 //#define THREAD_1D 256
 #define THREAD_1D 4
-#define FLOAT_TO_INT_DIGIT 1000
+#define FLOAT_TO_INT_DIGIT 1024
 
-
-struct MpmParticle {
-    int type;
-	float3 position;
-	float3 velocity;
-    float mass;
-    float volume;
-    float3x3 C; //C = D * B at Affine particle in cell
-    float3x3 Fe;
-    float Jp;
-};
-
-struct MpmCell {
-    float mass;
-    float3 mass_x_velocity;
-    float3 velocity;
-    float3 force;
-	float2 padding;
-};
-
-struct InterlockedMpmCell {
-    int mass;
-    int3 mass_x_velocity;
-    float3 velocity;
-    float3 force;
-	float2 padding;
-};
-
-// For GPU optimazation of MPM
-// https://dl.acm.org/doi/10.1145/3272127.3275044
-// http://pages.cs.wisc.edu/~sifakis/papers/GPU_MPM.pdf
-struct P2GMass {
-	float mass;
-	float3 mass_x_velocity;
-};
-
-
-
-int _NumOfParticles;
+uint _NumOfParticles;
 
 
 RWStructuredBuffer<uint2> _GridAndMassIdsBuffer;
@@ -58,9 +21,8 @@ StructuredBuffer<uint2> _GridIndicesBuffer;
 RWStructuredBuffer<uint2> _BoundaryAndIntervalBuffer;
 
 //Output 2
-RWStructuredBuffer<InterlockedMpmCell> _GridBuffer;
-//RWStructuredBuffer<int> _GridMassBuffer;
-//RWStructuredBuffer<int3> _GridMassVelBuffer;
+//RWStructuredBuffer<LockMpmCell> _GridBuffer;
+RWStructuredBuffer<LockMpmCell> _GridBuffer;
 
 //RWStructuredBuffer<P2GMass> _OutputP2gMassBuffer;
 RWStructuredBuffer<uint> _OutputP2gMassBuffer;
@@ -88,9 +50,11 @@ void ClearGridBuffers(uint3 DTid : SV_DispatchThreadID)
 	//_GridMassBuffer[cellId] = 0;
 	//_GridMassVelBuffer[cellId] = int3(0,0,0);
 
-	InterlockedMpmCell cell;
+	LockMpmCell cell;
 	cell.mass = 0;
+	cell.mass2 = 0;
 	cell.mass_x_velocity = int3(0,0,0);
+	cell.mass_x_velocity2 = int3(0,0,0);
 	cell.velocity = float3(0,0,0);
 	cell.force = float3(0,0,0);
 	cell.padding = float2(0,0);
@@ -216,9 +180,10 @@ void GatherAndWrite(uint3 DTid : SV_DispatchThreadID, uint GI : SV_GroupIndex)
 		//InterlockedAdd(_GridMassBuffer[cellIndex], intMass);
 		//InterlockedAdd(_GridMassVelBuffer[cellIndex].x, intMass);
 
-	 	InterlockedAdd(_GridBuffer[cellIndex].mass, intMass);
-	 	InterlockedAdd(_GridBuffer[cellIndex].mass_x_velocity.x, intMass);
-	 	InterlockedAdd(_GridBuffer[cellIndex].mass_x_velocity.y, intMass);
-	 	InterlockedAdd(_GridBuffer[cellIndex].mass_x_velocity.z, intMass);
+		InterlockedAdd(_GridBuffer[cellIndex].mass, intMass);
+		InterlockedAdd(_GridBuffer[cellIndex].mass_x_velocity.x, intMass);
+		InterlockedAdd(_GridBuffer[cellIndex].mass_x_velocity.y, intMass);
+		InterlockedAdd(_GridBuffer[cellIndex].mass_x_velocity.z, intMass);
+	 	//InterlockedAdd(_GridBuffer[cellIndex].mass_x_velocity, int3(intMass, intMass, intMass));
 	}
 }

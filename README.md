@@ -4,7 +4,7 @@
 
 Group Parallel Reduction Sum is writtern on [GPU Optimization of Material Point Methods](https://pages.cs.wisc.edu/~sifakis/papers/GPU_MPM.pdf).
 
-![image](https://user-images.githubusercontent.com/5733604/153383972-1ef1f4c5-86f4-42aa-ae85-7f280d8feebe.png)
+<img src="https://user-images.githubusercontent.com/5733604/153383972-1ef1f4c5-86f4-42aa-ae85-7f280d8feebe.png" width="320px" title = "Optimized particles-to-grid transfer" alt=". Optimized particles-to-grid transfer">
 
 
 ## Converter between Float and Int2

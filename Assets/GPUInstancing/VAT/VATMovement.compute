@@ -1,0 +1,25 @@
+#pragma kernel Move
+
+struct VATData {
+    float3 position;
+    float animationOffset;
+};
+
+RWStructuredBuffer<VATData> _VATObjectDataBuffer;
+float _Speed;
+float _deltaTime;
+
+float _MinBoundZ;
+float _MaxBoundZ;
+
+[numthreads(8,1,1)]
+void Move(uint3 id : SV_DispatchThreadID) {
+
+    float z = _VATObjectDataBuffer[id.x].position.z;
+    z += _deltaTime * _Speed;
+    
+    if(z > _MaxBoundZ)
+        z = _MinBoundZ + (z - _MaxBoundZ);
+
+    _VATObjectDataBuffer[id.x].position.z = z;
+}
